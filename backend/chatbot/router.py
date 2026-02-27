@@ -43,7 +43,7 @@ def call_llm(prompt: str) -> str:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a highly capable AI Financial Assistant. Your primary goal is to answer the user's queries accurately. If context (like transcripts or portfolio metrics) is provided, use it to give a specific, tailored answer. However, if the user asks a general financial question, an external market query, or a question completely outside the provided context, you MUST use your broad financial knowledge to answer it helpfully and comprehensively. Do not simply say you don't know if it's not in the context."},
+                {"role": "system", "content": "You are a highly capable AI Financial Assistant. Your primary goal is to answer the user's queries accurately. If context (like transcripts or portfolio metrics) is provided, use it to give a specific, tailored answer. However, if the user asks a general financial question, an external market query, or a question completely outside the provided context, you MUST use your broad financial knowledge to answer it helpfully and comprehensively. Keep all of your answers SHORT, CRISP, AND EASY TO READ using bullet points where applicable."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
@@ -119,7 +119,7 @@ Context from latest earnings transcripts:
 
 {portfolio_context}
 
-Please answer the user's question directly and concisely. Combine the provided context with your broad general knowledge when necessary to give a complete and helpful answer.
+Please answer the user's question directly and concisely. Combine the provided context with your broad general knowledge when necessary to give a complete and helpful answer. Keep your final answer short, crisp, and easy to read.
 """
         reply = call_llm(prompt)
         
@@ -135,7 +135,7 @@ Please answer the user's question directly and concisely. Combine the provided c
         
 {portfolio_context}
 
-Please answer this question fully using your general financial knowledge, as no specific internal documents or stock tickers were triggered for this query. Be helpful, comprehensive, and clear.
+Please answer this question fully using your general financial knowledge, as no specific internal documents or stock tickers were triggered for this query. Be helpful, comprehensive, and clear. Keep your answer short, crisp, and easy to read.
 """
         reply = call_llm(prompt)
         return ChatMessageResponse(
