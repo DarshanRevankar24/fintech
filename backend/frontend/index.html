@@ -13,6 +13,7 @@
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="chat_style.css">
 </head>
 
 <body>
@@ -228,6 +229,31 @@
             </div>
         </section>
 
+    </div>
+
+    <!-- Floating Chatbot -->
+    <div class="chatbot-container">
+        <!-- Toggle Button -->
+        <div class="chatbot-toggle" id="chatbot-toggle">
+            <i class="fa-solid fa-comment-dots"></i>
+        </div>
+
+        <!-- Chat Window -->
+        <div class="chatbot-window" id="chatbot-window">
+            <div class="chatbot-header">
+                <h3><i class="fa-solid fa-robot"></i> AI Financial Assistant</h3>
+                <button class="close-chat" id="close-chat"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="chatbot-messages" id="chatbot-messages">
+                <div class="chat-message bot">
+                    <p>Hello! I am your AI Financial Assistant. Ask me questions about your portfolio, the market, or specific stocks.</p>
+                </div>
+            </div>
+            <div class="chatbot-input">
+                <input type="text" id="chat-input-field" placeholder="Ask about Apple earnings..." autocomplete="off">
+                <button id="send-chat-btn"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
     </div>
 
     <script src="script.js"></script>

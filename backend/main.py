@@ -275,10 +275,11 @@ RESPONSE REQUIREMENTS
    - Explain tax considerations if sold today.
 5. Clearly explain risk score breakdown using provided risk components.
 6. Provide tax optimization insight (e.g., holding period benefits).
-7. Provide a confidence score between 0.0 and 1.0 based ONLY on:
-   - Completeness of data
-   - Quantity of transcript evidence
-   - Alignment between risk model and transcript signals
+7. Provide a calculation for `confidence_score` as a float between 0.0 and 1.0. This score MUST dynamically reflect:
+   - Completeness of the user's portfolio data
+   - Quality and relevance of the retrieved transcript evidence 
+   - Clarity of the market signals
+   DO NOT hardcode this to 0.2 or 0.0. Calculate a real estimate (e.g., 0.85, 0.62).
 8. Provide a short, actionable plan (not financial advice disclaimer heavy).
 
 If transcript evidence is insufficient, clearly state that insight is limited.
@@ -304,7 +305,7 @@ Return ONLY this JSON structure exactly:
   ],
   "tax_optimization_advice": "",
   "risk_score_explanation": "",
-  "confidence_score": 0.0,
+  "confidence_score": 0.85, 
   "action_plan": []
 }}
 """
@@ -428,15 +429,38 @@ Now provide your suggestions:"""
 
 analyzer = PortfolioAnalyzer(client)
 
-@app.get("/")
-async def root():
-    return {
-        "status": "ok",
-        "message": "Financial Explanation API (FREE with Groq - World's Fastest AI) is running",
-        "docs": "/docs",
-        "cost": "100% FREE - 14,400 requests/day",
-        "speed": "⚡ FASTEST AI API in the world"
-    }
+from chatbot.router import router as chatbot_router
+app.include_router(chatbot_router)
+
+from rag_vectorless import SearchQuery, SearchResponse, search_index, build_index_if_needed, generate_manifest_template
+
+@app.on_event("startup")
+def on_startup():
+    build_index_if_needed()
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
+@app.post("/rag/search", response_model=SearchResponse)
+def rag_search(query: SearchQuery):
+    results = search_index(query)
+    return SearchResponse(query=query.query, results=results)
+
+@app.post("/rag/rebuild")
+def rag_rebuild():
+    # Force rebuild by passing a flag or just deleting the file state?
+    # Actually, build_index_if_needed respects the needs_rebuild() function.
+    # To force, we can call global_index.build directly.
+    from rag_vectorless import global_index
+    global_index.build("./transcripts")
+    return {"status": "success", "message": "Index rebuilt"}
+
+@app.get("/rag/manifest-template")
+def rag_manifest_template():
+    return generate_manifest_template("./transcripts")
+
+
 
 @app.post("/api/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(database.get_db)):
@@ -519,12 +543,39 @@ async def explain_portfolio(
     try:
         print(f"[DEBUG] Received request with {len(request.portfolio)} holdings for user {current_user.full_name}")
         
+        # Helper to resolve company name to ticker if it's not a standard symbol
+        def resolve_ticker(name_or_ticker: str) -> str:
+            name_str = name_or_ticker.strip().upper()
+            # If it looks like a standard ticker (1-5 uppercase letters), return it
+            if name_str.isalpha() and len(name_str) <= 5:
+                return name_str
+            # Otherwise, try to use yfinance to search for the most likely ticker
+            try:
+                # yfinance currently doesn't have a direct "search" endpoint available reliably in all versions, 
+                # but we can try fetching a ticker to see if it implicitly matched, or rely on a hardcoded map for common requests during the demo
+                common_map = {
+                    "APPLE": "AAPL", "MICROSOFT": "MSFT", "NVIDIA": "NVDA", 
+                    "TESLA": "TSLA", "AMAZON": "AMZN", "META": "META",
+                    "FACEBOOK": "META", "GOOGLE": "GOOGL", "ALPHABET": "GOOGL",
+                    "NETFLIX": "NFLX", "AMD": "AMD", "INTEL": "INTC"
+                }
+                for key in common_map:
+                    if key in name_or_ticker.upper():
+                        return common_map[key]
+                return name_str # Fallback to giving what they typed
+            except Exception:
+                return name_str
+                
         # Fetch real-time prices for holdings if missing
         updated_holdings = []
         for holding in request.portfolio:
+            resolved_symbol = resolve_ticker(holding.ticker)
+            # Update the holding so the rest of the app uses the valid ticker
+            holding.ticker = resolved_symbol
+            
             if holding.current_price is None:
                 try:
-                    stock = yf.Ticker(holding.ticker)
+                    stock = yf.Ticker(resolved_symbol)
                     hist = stock.history(period="1d")
                     if not hist.empty:
                         holding.current_price = round(float(hist['Close'].iloc[-1]), 2)
@@ -551,6 +602,33 @@ async def explain_portfolio(
         import json
         structured_data = json.loads(explanation_json)
         
+        # Override the LLM's confidence_score with deterministic analytics
+        try:
+            # 1. Base confidence (50%)
+            calc_confidence = 0.50
+            
+            # 2. Portfolio Size factor (+ up to 25%)
+            # More holdings = we have more data to diversify risk analysis
+            num_holdings = metrics.get('holdings_count', 1)
+            size_factor = min(0.25, (num_holdings / 10.0) * 0.25)
+            calc_confidence += size_factor
+            
+            # 3. Sector Diversification factor (+ up to 25%)
+            # Less concentration in the top position = more confident overall analysis
+            top_pos_percent = metrics.get('largest_position_percent', 100)
+            if top_pos_percent < 100:
+                # If they are 100% in one stock, 0 bonus. 
+                # If they are 20% in one stock, max bonus.
+                diversification_bonus = min(0.25, ((100 - top_pos_percent) / 80.0) * 0.25)
+                calc_confidence += diversification_bonus
+                
+            # Cap safely at 99%
+            calc_confidence = round(min(0.99, calc_confidence), 2)
+            
+            structured_data['confidence_score'] = calc_confidence
+        except Exception as override_err:
+            print(f"[WARNING] Failed to override confidence score: {override_err}")
+        
         # Merge metrics back into the final response
         structured_data['portfolio_metrics'] = metrics
         
@@ -568,3 +646,6 @@ async def explain_portfolio(
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
+# Mount the static frontend directory
+from fastapi.staticfiles import StaticFiles
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")

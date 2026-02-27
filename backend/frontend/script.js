@@ -28,11 +28,20 @@ const sectionResult = document.getElementById('result-section');
 const loadingText = document.getElementById('loading-text');
 const progressBar = document.getElementById('progress-bar');
 
+// Chat DOM
+const chatbotToggle = document.getElementById('chatbot-toggle');
+const chatbotWindow = document.getElementById('chatbot-window');
+const closeChatBtn = document.getElementById('close-chat');
+const sendChatBtn = document.getElementById('send-chat-btn');
+const chatInputField = document.getElementById('chat-input-field');
+const chatMessagesContainer = document.getElementById('chatbot-messages');
+
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
     checkAuthState();
     addRowBtn.addEventListener('click', addRow);
     analyzeBtn.addEventListener('click', analyzePortfolio);
+    setupChatbot();
 });
 
 // --- AUTHENTICATION LOGIC ---
@@ -66,36 +75,36 @@ authSwitchLink.addEventListener('click', (e) => {
 
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
     const email = document.getElementById('auth-email').value;
     const fullName = document.getElementById('auth-fullname').value;
-    
+
     authSubmitBtn.disabled = true;
     authSubmitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
-    
+
     try {
         if (isLoginMode) {
             // Login Request
             const formData = new URLSearchParams();
             formData.append('username', username);
             formData.append('password', password);
-            
+
             const res = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData
             });
-            
+
             if (!res.ok) throw new Error("Invalid username or password");
             const data = await res.json();
-            
+
             authToken = data.access_token;
             currentUserName = data.user_name;
             localStorage.setItem('auth_token', authToken);
             localStorage.setItem('user_name', currentUserName);
-            
+
         } else {
             // Register Request
             const res = await fetch('/api/register', {
@@ -108,37 +117,37 @@ authForm.addEventListener('submit', async (e) => {
                     full_name: fullName
                 })
             });
-            
+
             if (!res.ok) {
                 const err = await res.json();
                 throw new Error(err.detail || "Registration failed");
             }
-            
+
             // Auto Login immediately after successful registration
             const formData = new URLSearchParams();
             formData.append('username', username);
             formData.append('password', password);
-            
+
             const loginRes = await fetch('/api/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData
             });
-            
+
             if (!loginRes.ok) throw new Error("Auto-login failed. Please try logging in manually.");
             const data = await loginRes.json();
-            
+
             authToken = data.access_token;
             currentUserName = data.user_name;
             localStorage.setItem('auth_token', authToken);
             localStorage.setItem('user_name', currentUserName);
-            
+
             // Clear inputs for security
             document.getElementById('auth-password').value = '';
-            
+
             alert("Registration successful! You are now logged in.");
         }
-        
+
     } catch (err) {
         alert(err.message);
     } finally {
@@ -187,14 +196,14 @@ async function loadSavedPortfolio() {
             }
             analyzeBtn.disabled = false;
         }
-    } catch(e) {
+    } catch (e) {
         console.error("Failed to load portfolio", e);
     }
 }
 
 // --- TABLE LOGIC ---
 
-function addRow(ticker='', shares='', price='', date='') {
+function addRow(ticker = '', shares = '', price = '', date = '') {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" class="table-input ticker-input" value="${ticker}" placeholder="e.g. AAPL" required></td>
@@ -221,7 +230,7 @@ function addRow(ticker='', shares='', price='', date='') {
 function gatherPortfolioData() {
     const holdings = [];
     const rows = tbody.querySelectorAll('tr');
-    
+
     for (const row of rows) {
         const ticker = row.querySelector('.ticker-input').value.trim();
         const shares = parseFloat(row.querySelector('.shares-input').value);
@@ -261,13 +270,13 @@ async function analyzePortfolio() {
         }
 
         updateLoadingState(`Saving portfolio securely...`, 20);
-        
+
         // Save to DB First
         await fetch('/api/portfolio/save', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}` 
+                'Authorization': `Bearer ${authToken}`
             },
             body: JSON.stringify(parsedHoldings)
         });
@@ -286,7 +295,7 @@ async function analyzePortfolio() {
 
         const explainRes = await fetch('/api/explain', {
             method: 'POST',
-            headers: { 
+            headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${authToken}`
             },
@@ -358,7 +367,7 @@ function renderDashboard(data) {
     document.getElementById('rebalance-panel').classList.remove('hidden');
     document.querySelector('.rebalance-panel h3').innerHTML = '<i class="fa-solid fa-magnifying-glass-chart"></i> Per-Asset Transcript Insights';
     const container = document.getElementById('rebalance-list');
-    
+
     container.innerHTML = data.per_stock_analysis.map(s => `
         <div class="rebalance-item">
             <div class="reb-action" style="font-size: 1.1rem; color: var(--primary)"><i class="fa-solid fa-briefcase"></i> ${s.ticker}</div>
@@ -371,7 +380,7 @@ function renderDashboard(data) {
     // 5. General Tax Advice Panel replacing the old Tax Table
     document.getElementById('tax-panel').classList.remove('hidden');
     document.querySelector('#tax-panel h3').innerHTML = '<i class="fa-solid fa-scale-unbalanced"></i> Risk & Tax Optimization';
-    
+
     document.querySelector('#tax-panel .table-container').innerHTML = `
         <div style="background: rgba(0,0,0,0.2); border: 1px solid var(--panel-border); border-radius:10px; padding: 1.5rem">
             <p style="margin-bottom: 1rem"><strong>Risk Explanation:</strong><br/> ${data.risk_score_explanation}</p>
@@ -432,4 +441,117 @@ function renderChart(allocation) {
             cutout: '70%'
         }
     });
+}
+
+// --- CHATBOT LOGIC ---
+
+function setupChatbot() {
+    // Open chat
+    chatbotToggle.addEventListener('click', () => {
+        chatbotWindow.classList.add('open');
+        chatInputField.focus();
+    });
+
+    // Close chat
+    closeChatBtn.addEventListener('click', () => {
+        chatbotWindow.classList.remove('open');
+    });
+
+    // Send message on click
+    sendChatBtn.addEventListener('click', handleSendChatMessage);
+
+    // Send message on enter
+    chatInputField.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSendChatMessage();
+    });
+}
+
+async function handleSendChatMessage() {
+    const text = chatInputField.value.trim();
+    if (!text) return;
+
+    // 1. Add User Message
+    addChatMessage(text, 'user');
+    chatInputField.value = '';
+
+    // 2. Add Loading Indicator
+    const loaderId = addChatLoader();
+
+    try {
+        // 3. Send API Request
+        // If the user isn't logged in with a token, we could omit the Authorization header,
+        // but for now we expect they are authenticated for the chatbot as well.
+        const reqHeaders = { 'Content-Type': 'application/json' };
+        if (authToken) {
+            reqHeaders['Authorization'] = `Bearer ${authToken}`;
+        }
+
+        const res = await fetch('/chat/message', {
+            method: 'POST',
+            headers: reqHeaders,
+            body: JSON.stringify({ message: text, top_k_sources: 5 })
+        });
+
+        removeChatLoader(loaderId);
+
+        if (!res.ok) {
+            throw new Error(`Server returned ${res.status}`);
+        }
+
+        const data = await res.json();
+
+        // 4. Render Bot Response
+        addChatMessage(data.reply, 'bot', data.detected_stocks);
+
+    } catch (err) {
+        console.error(err);
+        removeChatLoader(loaderId);
+        addChatMessage("Sorry, I encountered an error connecting to the server.", 'bot');
+    }
+}
+
+function addChatMessage(message, sender, detectedStocks = null) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-message ${sender}`;
+
+    let contentHtml = `<p>${escapeHtml(message)}</p>`;
+
+    if (detectedStocks && detectedStocks.length > 0) {
+        contentHtml += `<span class="chat-metadata">Detected: ${detectedStocks.join(', ')}</span>`;
+    }
+
+    msgDiv.innerHTML = contentHtml;
+    chatMessagesContainer.appendChild(msgDiv);
+
+    // Scroll to bottom
+    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+}
+
+function addChatLoader() {
+    const id = 'loader-' + Date.now();
+    const loaderDiv = document.createElement('div');
+    loaderDiv.className = 'chat-loader';
+    loaderDiv.id = id;
+    loaderDiv.innerHTML = `
+        <div class="chat-dot"></div>
+        <div class="chat-dot"></div>
+        <div class="chat-dot"></div>
+    `;
+    chatMessagesContainer.appendChild(loaderDiv);
+    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+    return id;
+}
+
+function removeChatLoader(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
+
+function escapeHtml(unsafe) {
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
