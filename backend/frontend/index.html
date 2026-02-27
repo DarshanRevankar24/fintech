@@ -12,8 +12,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="chat_style.css">
+    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="chat_style.css?v=2">
 </head>
 
 <body>
@@ -44,6 +44,90 @@
             <div class="form-group">
                 <label>Password</label>
                 <input type="password" id="auth-password" class="table-input" required placeholder="••••••••">
+            </div>
+
+            <!-- Financial Profile Fields (Only shown during registration) -->
+            <div id="register-profile-section"
+                style="display: none; margin-top: 1rem; border-top: 1px solid var(--panel-border); padding-top: 1rem;">
+                <h4 style="margin-bottom: 1rem;"><i class="fa-solid fa-address-card"></i> Optional: Financial Profile
+                </h4>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">This helps the AI give
+                    you hyper-personalized advice.</p>
+                <div class="settings-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="setting-item">
+                        <label>Age</label>
+                        <input type="number" id="profile-age" class="table-input" placeholder="e.g. 35" min="18">
+                    </div>
+                    <div class="setting-item">
+                        <label>Profession</label>
+                        <select id="profile-profession" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="Salaried">Salaried</option>
+                            <option value="Business Owner">Business Owner</option>
+                            <option value="Freelancer">Freelancer</option>
+                            <option value="Student">Student</option>
+                            <option value="Retired">Retired</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Annual Income</label>
+                        <select id="profile-income" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="<5L">&lt;5L</option>
+                            <option value="5-10L" selected>5–10L</option>
+                            <option value="10-20L">10–20L</option>
+                            <option value="20L+">20L+</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Investment Experience</label>
+                        <select id="profile-experience" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="Beginner">Beginner</option>
+                            <option value="Intermediate">Intermediate</option>
+                            <option value="Advanced">Advanced</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Risk Appetite</label>
+                        <select id="profile-risk" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="Low">Low</option>
+                            <option value="Moderate" selected>Moderate</option>
+                            <option value="High">High</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Investment Horizon</label>
+                        <select id="profile-horizon" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="Short <3 yrs">Short &lt;3 yrs</option>
+                            <option value="Medium 3-7 yrs" selected>Medium 3–7 yrs</option>
+                            <option value="Long >7 yrs">Long &gt;7 yrs</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Dependents</label>
+                        <select id="profile-dependents" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="0">0</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3+">3+</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label>Primary Goal</label>
+                        <select id="profile-goal" class="table-input"
+                            style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                            <option value="Wealth Growth">Wealth Growth</option>
+                            <option value="Retirement">Retirement</option>
+                            <option value="Passive Income">Passive Income</option>
+                            <option value="Capital Protection">Capital Protection</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <button type="submit" class="btn btn-action" id="auth-submit-btn">Log In</button>
@@ -142,6 +226,37 @@
 
         <!-- Dashboard / Results Section -->
         <section id="result-section" class="hidden">
+            <!-- Suitability & Alignment -->
+            <div class="stats-grid" style="margin-bottom: 1.5rem">
+                <div class="stat-card glass-panel" id="suitability-card"
+                    style="border-left: 4px solid var(--panel-border);">
+                    <div class="stat-icon"><i class="fa-solid fa-bullseye"></i></div>
+                    <div class="stat-info">
+                        <p>Suitability Score</p>
+                        <h2 id="suitability-score" style="margin-top:0.2rem">--/100</h2>
+                        <span id="suitability-level"
+                            style="font-size: 0.9rem; font-weight: 500; display: inline-block; margin-top:0.3rem; padding: 0.2rem 0.5rem; border-radius: 4px; background: rgba(0,0,0,0.05);">--</span>
+                    </div>
+                </div>
+                <div class="stat-card glass-panel">
+                    <div class="stat-icon"><i class="fa-solid fa-user-clock"></i></div>
+                    <div class="stat-info">
+                        <p>Life Stage Profile</p>
+                        <h3 id="life-stage" style="margin-top:0.5rem; font-size:1.1rem; color:var(--text)">--</h3>
+                    </div>
+                </div>
+                <div class="stat-card glass-panel" style="grid-column: span 1.5;">
+                    <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="stat-info">
+                        <p>Alignment Indicators & Warnings</p>
+                        <ul id="suitability-breakdown"
+                            style="margin-top:0.5rem; font-size:0.9rem; padding-left:1rem; color:var(--text-secondary)">
+                            <li>No warnings.</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
             <!-- Top Stats -->
             <div class="stats-grid">
                 <div class="stat-card glass-panel">
@@ -231,6 +346,28 @@
 
     </div>
 
+    <!-- Floating Edit Profile Button -->
+    <button id="floating-edit-profile-btn" class="btn btn-action"
+        style="display: none; position: fixed; bottom: 20px; left: 20px; z-index: 999; width: auto; padding: 0.75rem 1.5rem; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <i class="fa-solid fa-user-pen"></i> Edit Profile
+    </button>
+
+    <!-- Edit Profile Modal -->
+    <div id="edit-profile-modal" class="auth-modal glass-panel"
+        style="display: none; max-width: 600px; text-align: left; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+            <h3 class="gradient-text"><i class="fa-solid fa-address-card"></i> Edit Financial Profile</h3>
+            <button id="close-edit-profile-btn"
+                style="background: transparent; border: none; color: var(--text-primary); font-size: 1.2rem; cursor: pointer;"><i
+                    class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="edit-profile-grid" class="settings-grid"
+            style="grid-template-columns: 1fr 1fr; margin-bottom: 1.5rem;">
+            <!-- Fields dynamically cloned here -->
+        </div>
+        <button id="save-edit-profile-btn" class="btn btn-action" style="margin-top: 0;">Save &amp; Re-preview</button>
+    </div>
+
     <!-- Floating Chatbot -->
     <div class="chatbot-container">
         <!-- Toggle Button -->
@@ -246,7 +383,8 @@
             </div>
             <div class="chatbot-messages" id="chatbot-messages">
                 <div class="chat-message bot">
-                    <p>Hello! I am your AI Financial Assistant. Ask me questions about your portfolio, the market, or specific stocks.</p>
+                    <p>Hello! I am your AI Financial Assistant. Ask me questions about your portfolio, the market, or
+                        specific stocks.</p>
                 </div>
             </div>
             <div class="chatbot-input">

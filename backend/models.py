@@ -10,6 +10,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     full_name = Column(String)
     hashed_password = Column(String)
+    user_profile = Column(String, default="{}") # Stored as JSON string to support generic DBs
 
     holdings = relationship("Holding", back_populates="owner")
 

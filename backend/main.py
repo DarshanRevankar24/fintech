@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 import database
 import models
 import auth
+from services.suitability import calculate_suitability, anonymize_profile_for_llm
 
 # Initialize DB tables
 models.Base.metadata.create_all(bind=database.engine)
@@ -72,12 +73,30 @@ class PortfolioHolding(BaseModel):
     def ticker_uppercase(cls, v):
         return v.upper().strip()
 
+class UserProfile(BaseModel):
+    age: Optional[int] = Field(None, description="Age (number)")
+    profession: Optional[str] = Field(None, description="Profession dropdown")
+    annual_income: Optional[str] = Field(None, description="Annual Income Range")
+    investment_experience: Optional[str] = Field(None, description="Investment Experience")
+    risk_appetite: Optional[str] = Field(None, description="Risk Appetite")
+    investment_horizon: Optional[str] = Field(None, description="Investment Horizon")
+    dependents: Optional[str] = Field(None, description="Number of Dependents")
+    primary_goal: Optional[str] = Field(None, description="Primary Goal")
+
 class ExplanationRequest(BaseModel):
     portfolio: List[PortfolioHolding] = Field(..., min_items=1)
     user_level: Literal["beginner", "intermediate", "expert"] = Field(default="beginner")
     include_tax_analysis: bool = Field(default=True)
     include_rebalancing: bool = Field(default=True)
     transcript_context: Optional[str] = Field(None)
+    user_profile: Optional[UserProfile] = Field(default=None)
+
+class PreviewResponse(BaseModel):
+    portfolio_metrics: dict
+    suitability_score: float
+    suitability_level: str
+    suitability_breakdown: List[str]
+    life_stage_classification: str
 
 # Auth schemas
 class UserCreate(BaseModel):
@@ -85,6 +104,7 @@ class UserCreate(BaseModel):
     email: str
     password: str
     full_name: str
+    user_profile: Optional[UserProfile] = None
 
 class Token(BaseModel):
     access_token: str
@@ -156,6 +176,14 @@ class PortfolioAnalyzer:
         
         sector_allocation = self._estimate_sector_allocation(holdings_value)
         
+        # Calculate a basic portfolio risk score (0-100)
+        risk = 30
+        largest_pct = round(max(holdings_value.values()) / total_value * 100, 2) if total_value > 0 else 0
+        risk += (largest_pct / 2)
+        tech_pct = sector_allocation.get("Technology", 0) * 100
+        risk += (tech_pct / 3)
+        portfolio_risk_score = round(min(100, max(0, risk)), 2)
+        
         return {
             "total_value": round(total_value, 2),
             "total_cost_basis": round(total_cost, 2),
@@ -163,8 +191,9 @@ class PortfolioAnalyzer:
             "unrealized_gain_percent": round((total_value - total_cost) / total_cost * 100, 2) if total_cost > 0 else 0,
             "holdings_count": len(holdings),
             "largest_position": max(holdings_value, key=holdings_value.get) if holdings_value else "N/A",
-            "largest_position_percent": round(max(holdings_value.values()) / total_value * 100, 2) if total_value > 0 else 0,
-            "sector_allocation": sector_allocation
+            "largest_position_percent": largest_pct,
+            "sector_allocation": sector_allocation,
+            "portfolio_risk_score": portfolio_risk_score
         }
     
     def _estimate_sector_allocation(self, holdings_value: dict) -> dict:
@@ -191,7 +220,9 @@ class PortfolioAnalyzer:
         metrics: dict,
         user_name: str,
         user_level: str,
-        transcript_context: Optional[str] = None
+        transcript_context: Optional[str] = None,
+        suitability_metrics: Optional[dict] = None,
+        user_profile: Optional[dict] = None
     ) -> str:
         """
         Call Groq API (FREE and FAST!) to generate explanation
@@ -203,6 +234,13 @@ class PortfolioAnalyzer:
         # We can calculate some basic tax string conceptually to pass as input
         tax_summary = "Tax implications depend on holding period. Assets held >1 yr are subject to long term capital gains."
         risk_model_output = "Moderate risk calculated via standard volatility metrics."
+        if suitability_metrics:
+            risk_model_output = f"Portfolio Risk: {metrics.get('portfolio_risk_score', 50)}/100.\nSuitability Score: {suitability_metrics.get('suitability_score')}/100. Level: {suitability_metrics.get('suitability_level')}\nBreakdown: {', '.join(suitability_metrics.get('suitability_breakdown', []))}\nLife Stage: {suitability_metrics.get('life_stage_classification')}"
+            
+        profile_info = ""
+        if user_profile:
+            profile_info = f"\nAnonymized Profile:\n" + "\n".join([f"{k}: {v}" for k, v in user_profile.items() if v])
+            
         rag_context = transcript_context if transcript_context else "No relevant earnings call transcripts retrieved."
         
         portfolio_metrics_str = self._format_portfolio_for_prompt(holdings, metrics)
@@ -227,7 +265,7 @@ CLIENT INFORMATION
 ==============================
 
 Client Name: {user_name}
-Experience Level: {user_level}
+Experience Level: {user_level}{profile_info}
 
 Portfolio Metrics:
 {portfolio_metrics_str}
@@ -469,16 +507,47 @@ def register_user(user: UserCreate, db: Session = Depends(database.get_db)):
         raise HTTPException(status_code=400, detail="Username already registered")
     
     hashed_password = auth.get_password_hash(user.password)
+    
+    # Dump user profile to JSON string
+    profile_json = "{}"
+    if user.user_profile:
+        profile_json = json.dumps(user.user_profile.model_dump(exclude_unset=True))
+        
     db_user = models.User(
         username=user.username,
         email=user.email,
         full_name=user.full_name,
-        hashed_password=hashed_password
+        hashed_password=hashed_password,
+        user_profile=profile_json
     )
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
+
+@app.get("/api/profile", response_model=UserProfile)
+def get_profile(current_user: models.User = Depends(auth.get_current_user)):
+    try:
+        profile_dict = json.loads(current_user.user_profile) if current_user.user_profile else {}
+        return UserProfile(**profile_dict)
+    except Exception as e:
+        print(f"Error parsing profile: {e}")
+        return UserProfile()
+
+@app.post("/api/profile", response_model=UserProfile)
+def update_profile(
+    profile: UserProfile, 
+    db: Session = Depends(database.get_db),
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    try:
+        current_user.user_profile = json.dumps(profile.model_dump(exclude_unset=True))
+        db.commit()
+        db.refresh(current_user)
+        return profile
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
 
 @app.post("/api/login", response_model=Token)
 def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
@@ -532,6 +601,39 @@ def get_portfolio(
             purchase_date=h.purchase_date
         ) for h in holdings
     ]
+
+@app.post("/api/preview", response_model=PreviewResponse)
+async def preview_portfolio(
+    request: ExplanationRequest,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Instant deterministic metrics via preview"""
+    # Fetch real-time prices for holdings if missing, similar to explain (can simplify or just use purchase as current for preview to be fast)
+    for holding in request.portfolio:
+        if holding.current_price is None:
+            holding.current_price = holding.purchase_price
+    metrics = analyzer.calculate_portfolio_metrics(request.portfolio)
+    
+    # Priority: DB Profile > Request Profile (though request profile should be rare now)
+    user_prof = {}
+    if current_user.user_profile:
+        import json
+        try:
+            user_prof = json.loads(current_user.user_profile)
+        except:
+            pass
+            
+    if not user_prof and request.user_profile:
+        user_prof = request.user_profile.model_dump(exclude_unset=True, exclude_none=True)
+        
+    suitability = calculate_suitability(user_prof, metrics)
+    return PreviewResponse(
+        portfolio_metrics=metrics,
+        suitability_score=suitability["suitability_score"],
+        suitability_level=suitability["suitability_level"],
+        suitability_breakdown=suitability["suitability_breakdown"],
+        life_stage_classification=suitability["life_stage_classification"]
+    )
 
 @app.post("/api/explain", response_model=ExplanationResponse)
 async def explain_portfolio(
@@ -589,12 +691,32 @@ async def explain_portfolio(
         request.portfolio = updated_holdings
         metrics = analyzer.calculate_portfolio_metrics(request.portfolio)
         
+        # Priority: DB Profile > Request Profile
+        user_prof = {}
+        if current_user.user_profile:
+            import json
+            try:
+                user_prof = json.loads(current_user.user_profile)
+            except:
+                pass
+                
+        if not user_prof and request.user_profile:
+            user_prof = request.user_profile.model_dump(exclude_unset=True, exclude_none=True)
+            
+        suitability = calculate_suitability(user_prof, metrics)
+        safe_profile = anonymize_profile_for_llm(user_prof)
+        
+        # Merge suitability logic into metrics so frontend gets it instantly in explanation as well
+        metrics.update(suitability)
+        
         explanation_json = analyzer.generate_explanation(
             holdings=request.portfolio,
             metrics=metrics,
             user_name=current_user.full_name, # Injected from DB
             user_level=request.user_level,
-            transcript_context=request.transcript_context
+            transcript_context=request.transcript_context,
+            suitability_metrics=suitability,
+            user_profile=safe_profile
         )
         print(f"[DEBUG] Explanation generated")
         

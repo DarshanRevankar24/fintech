@@ -64,11 +64,25 @@ def handle_chat_message(
     
     # FETCH PORTFOLIO for context
     portfolio_context = "The user currently has no saved portfolio holdings."
+    profile_context = ""
+    
     if current_user:
         holdings = db.query(models.Holding).filter(models.Holding.owner_id == current_user.id).all()
         if holdings:
             portfolio_lines = [f"- {h.ticker}: {h.shares} shares @ ${h.purchase_price} (Purchased {h.purchase_date})" for h in holdings]
             portfolio_context = "User's Current Portfolio:\n" + "\n".join(portfolio_lines)
+            
+        if current_user.user_profile:
+            import json
+            try:
+                prof_dict = json.loads(current_user.user_profile)
+                if prof_dict:
+                    from services.suitability import anonymize_profile_for_llm
+                    safe_prof = anonymize_profile_for_llm(prof_dict)
+                    profile_lines = [f"- {k.replace('_', ' ').title()}: {v}" for k, v in safe_prof.items() if v]
+                    profile_context = "\nUser Demographics & Financial Profile:\n" + "\n".join(profile_lines)
+            except:
+                pass
     
     # PART 1 & 2: Resolve stocks from text
     resolved_tickers = resolve_stock(user_text)
@@ -117,7 +131,7 @@ Real-time Price Info:
 Context from latest earnings transcripts:
 {context_str}
 
-{portfolio_context}
+{portfolio_context}{profile_context}
 
 Please answer the user's question directly and concisely. Combine the provided context with your broad general knowledge when necessary to give a complete and helpful answer. Keep your final answer short, crisp, and easy to read.
 """
@@ -133,7 +147,7 @@ Please answer the user's question directly and concisely. Combine the provided c
         # PART 4: Generic queries (No stocks resolved)
         prompt = f"""User asks: "{user_text}"
         
-{portfolio_context}
+{portfolio_context}{profile_context}
 
 Please answer this question fully using your general financial knowledge, as no specific internal documents or stock tickers were triggered for this query. Be helpful, comprehensive, and clear. Keep your answer short, crisp, and easy to read.
 """

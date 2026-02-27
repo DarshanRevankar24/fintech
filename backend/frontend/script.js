@@ -58,6 +58,7 @@ authSwitchLink.addEventListener('click', (e) => {
         authSwitchLink.textContent = "Register here";
         nameGroup.style.display = "none";
         emailGroup.style.display = "none";
+        document.getElementById('register-profile-section').style.display = "none";
         document.getElementById('auth-fullname').required = false;
         document.getElementById('auth-email').required = false;
     } else {
@@ -68,6 +69,7 @@ authSwitchLink.addEventListener('click', (e) => {
         authSwitchLink.textContent = "Log In here";
         nameGroup.style.display = "block";
         emailGroup.style.display = "block";
+        document.getElementById('register-profile-section').style.display = "block";
         document.getElementById('auth-fullname').required = true;
         document.getElementById('auth-email').required = true;
     }
@@ -107,6 +109,11 @@ authForm.addEventListener('submit', async (e) => {
 
         } else {
             // Register Request
+            let userProfile = null;
+            if (isLoginMode === false && document.getElementById('profile-age').value) {
+                userProfile = gatherProfileData(); // Reusing the same function, assuming the inputs have the exact same IDs
+            }
+
             const res = await fetch('/api/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -114,7 +121,8 @@ authForm.addEventListener('submit', async (e) => {
                     username: username,
                     password: password,
                     email: email,
-                    full_name: fullName
+                    full_name: fullName,
+                    user_profile: userProfile
                 })
             });
 
@@ -171,9 +179,12 @@ function checkAuthState() {
         appContainer.classList.remove('hidden');
         welcomeName.innerHTML = `Welcome, <span style="color:var(--primary)">${currentUserName}</span>`;
         loadSavedPortfolio();
+        fetchAndSetupProfileUI();
+        document.getElementById('floating-edit-profile-btn').style.display = 'block';
     } else {
         authModal.classList.remove('hidden');
         appContainer.classList.add('hidden');
+        document.getElementById('floating-edit-profile-btn').style.display = 'none';
     }
 }
 
@@ -252,7 +263,103 @@ function gatherPortfolioData() {
     return holdings;
 }
 
-// --- APP FLOW ---
+// --- PROFILE MODAL & LOGIC ---
+
+// This function still works because the form fields have the exact same IDs in the Auth Modal
+function gatherProfileData(prefix = "profile") {
+    const ageVal = document.getElementById(`${prefix}-age`).value;
+    return {
+        age: ageVal ? parseInt(ageVal, 10) : null,
+        profession: document.getElementById(`${prefix}-profession`).value,
+        annual_income: document.getElementById(`${prefix}-income`).value,
+        investment_experience: document.getElementById(`${prefix}-experience`).value,
+        risk_appetite: document.getElementById(`${prefix}-risk`).value,
+        investment_horizon: document.getElementById(`${prefix}-horizon`).value,
+        dependents: document.getElementById(`${prefix}-dependents`).value,
+        primary_goal: document.getElementById(`${prefix}-goal`).value
+    };
+}
+
+let userProfileBackup = null;
+
+async function fetchAndSetupProfileUI() {
+    try {
+        const res = await fetch('/api/profile', { headers: { 'Authorization': `Bearer ${authToken}` } });
+        if (res.ok) {
+            userProfileBackup = await res.json();
+        }
+    } catch (e) { console.error("Could not fetch profile", e); }
+}
+
+const editProfileBtn = document.getElementById('floating-edit-profile-btn');
+const editProfileModal = document.getElementById('edit-profile-modal');
+const closeEditProfileBtn = document.getElementById('close-edit-profile-btn');
+const saveEditProfileBtn = document.getElementById('save-edit-profile-btn');
+const editProfileGrid = document.getElementById('edit-profile-grid');
+
+// Clone the registration fields into the modal safely
+function openEditProfileModal() {
+    if (editProfileGrid.innerHTML.trim() === "") {
+        const templateHTML = document.getElementById('register-profile-section').querySelector('.settings-grid').innerHTML;
+        // Replace 'profile-' with 'edit-profile-' to avoid duplicate DOM IDs
+        editProfileGrid.innerHTML = templateHTML.replaceAll('id="profile-', 'id="edit-profile-');
+    }
+
+    // Pre-fill fields
+    if (userProfileBackup) {
+        if (userProfileBackup.age) document.getElementById('edit-profile-age').value = userProfileBackup.age;
+        if (userProfileBackup.profession) document.getElementById('edit-profile-profession').value = userProfileBackup.profession;
+        if (userProfileBackup.annual_income) document.getElementById('edit-profile-income').value = userProfileBackup.annual_income;
+        if (userProfileBackup.investment_experience) document.getElementById('edit-profile-experience').value = userProfileBackup.investment_experience;
+        if (userProfileBackup.risk_appetite) document.getElementById('edit-profile-risk').value = userProfileBackup.risk_appetite;
+        if (userProfileBackup.investment_horizon) document.getElementById('edit-profile-horizon').value = userProfileBackup.investment_horizon;
+        if (userProfileBackup.dependents) document.getElementById('edit-profile-dependents').value = userProfileBackup.dependents;
+        if (userProfileBackup.primary_goal) document.getElementById('edit-profile-goal').value = userProfileBackup.primary_goal;
+    }
+
+    editProfileModal.style.display = 'block';
+}
+
+editProfileBtn.addEventListener('click', openEditProfileModal);
+
+closeEditProfileBtn.addEventListener('click', () => {
+    editProfileModal.style.display = 'none';
+});
+
+saveEditProfileBtn.addEventListener('click', async () => {
+    const newProfile = gatherProfileData('edit-profile');
+    saveEditProfileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+    try {
+        const res = await fetch('/api/profile', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(newProfile)
+        });
+        if (res.ok) {
+            userProfileBackup = await res.json();
+            editProfileModal.style.display = 'none';
+            // Auto re-analyze to instantly see standard updates matching the new DB profile!
+            if (!sectionResult.classList.contains('hidden') || !sectionUpload.classList.contains('hidden')) {
+                // Only re-trigger if they've at least added stocks
+                if (tbody.querySelectorAll('tr').length > 0) {
+                    analyzePortfolio();
+                }
+            }
+        } else {
+            alert("Failed to save profile.");
+        }
+    } catch (e) {
+        console.error(e);
+        alert("Network error saving profile.");
+    } finally {
+        saveEditProfileBtn.innerHTML = 'Save &amp; Re-preview';
+    }
+});
+
+// --- APP FLOW (Explain) ---
 
 async function analyzePortfolio() {
     sectionUpload.classList.add('hidden');
@@ -285,6 +392,7 @@ async function analyzePortfolio() {
 
         const userLevel = document.getElementById('user-level').value;
 
+        // Explain payload drops `user_profile` now since the backend natively loads it from the DB
         const explainReqPayload = {
             portfolio: parsedHoldings,
             user_level: userLevel,
@@ -344,6 +452,30 @@ function renderDashboard(data) {
     gainEl.textContent = `${formatCurrency(metrics.unrealized_gain)} (${metrics.unrealized_gain_percent > 0 ? '+' : ''}${metrics.unrealized_gain_percent}%)`;
     gainEl.className = metrics.unrealized_gain >= 0 ? 'gain-positive' : 'gain-negative';
     document.getElementById('top-position').textContent = `${metrics.largest_position} (${metrics.largest_position_percent}%)`;
+
+    // Suitability metrics
+    const score = metrics.suitability_score || 0;
+    let color = 'var(--text)';
+    if (score >= 75) color = 'var(--success)';
+    else if (score >= 50) color = 'var(--warning)';
+    else color = 'var(--danger)';
+
+    const suitScoreEl = document.getElementById('suitability-score');
+    suitScoreEl.textContent = `${score}/100`;
+    suitScoreEl.style.color = color;
+
+    const suitLevelEl = document.getElementById('suitability-level');
+    suitLevelEl.textContent = metrics.suitability_level || "Unknown";
+    suitLevelEl.style.color = color;
+
+    document.getElementById('life-stage').textContent = metrics.life_stage_classification || "Unknown";
+
+    const breakdownUl = document.getElementById('suitability-breakdown');
+    if (metrics.suitability_breakdown && metrics.suitability_breakdown.length > 0) {
+        breakdownUl.innerHTML = metrics.suitability_breakdown.map(b => `<li>${b}</li>`).join('');
+    } else {
+        breakdownUl.innerHTML = '<li>No warnings. Aligned with profile.</li>';
+    }
 
     // 1. AI Greeting & Summary
     let htmlExplanation = `
@@ -416,7 +548,7 @@ function renderChart(allocation) {
         }
     }
 
-    const bgColors = ['#8b5cf6', '#ec4899', '#6366f1', '#10b981', '#f59e0b'];
+    const bgColors = ['#10b981', '#d97706', '#059669', '#f59e0b', '#34d399'];
 
     new Chart(ctx, {
         type: 'doughnut',
@@ -435,7 +567,7 @@ function renderChart(allocation) {
             plugins: {
                 legend: {
                     position: 'bottom',
-                    labels: { color: '#ffffff' }
+                    labels: { color: '#111827' }
                 }
             },
             cutout: '70%'
@@ -552,6 +684,11 @@ function escapeHtml(unsafe) {
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
 }
+
+// --- INITIALIZATION ---
+analyzeBtn.addEventListener('click', analyzePortfolio);
+addRowBtn.addEventListener('click', () => addRow());
+setupChatbot();
+checkAuthState();

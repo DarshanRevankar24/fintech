@@ -1,16 +1,16 @@
 :root {
-    --bg-dark: #0f1016;
-    --panel-bg: rgba(25, 27, 36, 0.65);
-    --panel-border: rgba(255, 255, 255, 0.08);
-    --text-primary: #ffffff;
-    --text-secondary: #a1a1aa;
-    --primary: #8b5cf6;
-    --primary-hover: #7c3aed;
-    --secondary: #ec4899;
+    --bg-dark: #f8f9fa;
+    --panel-bg: rgba(255, 255, 255, 0.85);
+    --panel-border: rgba(0, 0, 0, 0.1);
+    --text-primary: #111827;
+    --text-secondary: #4b5563;
+    --primary: #10b981;
+    --primary-hover: #059669;
+    --secondary: #d97706;
     --success: #10b981;
     --danger: #ef4444;
     --warning: #f59e0b;
-    --gradient: linear-gradient(135deg, #6366f1, #a855f7, #ec4899);
+    --gradient: linear-gradient(135deg, #10b981, #d97706);
 }
 
 * {
@@ -51,7 +51,7 @@ body {
 .orb-1 {
     width: 600px;
     height: 600px;
-    background: #6366f1;
+    background: #10b981;
     top: -200px;
     left: -200px;
     animation-delay: 0s;
@@ -60,7 +60,7 @@ body {
 .orb-2 {
     width: 500px;
     height: 500px;
-    background: #a855f7;
+    background: #d97706;
     bottom: -150px;
     right: -100px;
     animation-delay: -5s;
@@ -69,7 +69,7 @@ body {
 .orb-3 {
     width: 400px;
     height: 400px;
-    background: #ec4899;
+    background: #34d399;
     top: 30%;
     left: 40%;
     animation-delay: -10s;
@@ -121,7 +121,7 @@ header p {
     border: 1px solid var(--panel-border);
     border-radius: 20px;
     padding: 2rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
 }
 
 .hidden {
@@ -217,7 +217,9 @@ header p {
     padding: 1rem;
     border-radius: 10px;
     font-size: 1rem;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--panel-border);
+    color: var(--text-primary);
 }
 
 .auth-switch {
@@ -241,6 +243,47 @@ header p {
     padding: 0.5rem 1rem;
     font-size: 0.9rem;
     border-radius: 8px;
+}
+
+/* Floating Edit Profile Button */
+#floating-edit-profile-btn {
+    transition: all 0.3s ease;
+    background: var(--gradient) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+}
+
+#floating-edit-profile-btn:hover {
+    transform: translateY(-5px) !important;
+    box-shadow: 0 8px 25px rgba(168, 85, 247, 0.6) !important;
+}
+
+#edit-profile-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    margin: 0 !important;
+    max-height: 90vh;
+    /* Don't grow larger than 90% view height */
+}
+
+/* Add custom scrollbar for modal */
+#edit-profile-modal::-webkit-scrollbar {
+    width: 6px;
+}
+
+#edit-profile-modal::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#edit-profile-modal::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+}
+
+#edit-profile-modal::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 /* Upload Area */
@@ -301,7 +344,7 @@ table#portfolio-table {
 }
 
 table#portfolio-table th {
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(0, 0, 0, 0.05);
     border-bottom: 1px solid var(--panel-border);
     padding: 1rem;
     color: var(--text-secondary);
@@ -316,9 +359,9 @@ table#portfolio-table td {
 
 .table-input {
     width: 100%;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.05);
     border: 1px solid var(--panel-border);
-    color: white;
+    color: var(--text-primary);
     padding: 0.6rem 0.8rem;
     border-radius: 8px;
     font-size: 0.95rem;
@@ -328,11 +371,11 @@ table#portfolio-table td {
 
 .table-input:focus {
     border-color: var(--primary);
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.08);
 }
 
 .table-input::placeholder {
-    color: rgba(255, 255, 255, 0.3);
+    color: rgba(0, 0, 0, 0.4);
 }
 
 .btn-icon {
@@ -373,9 +416,9 @@ table#portfolio-table td {
 }
 
 .setting-item select {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.05);
     border: 1px solid var(--panel-border);
-    color: white;
+    color: var(--text-primary);
     padding: 0.75rem;
     border-radius: 10px;
     font-size: 1rem;
@@ -383,8 +426,8 @@ table#portfolio-table td {
 }
 
 .setting-item select option {
-    background: var(--bg-dark);
-    color: white;
+    background: #ffffff;
+    color: var(--text-primary);
 }
 
 /* Toggles */
@@ -392,7 +435,7 @@ table#portfolio-table td {
     flex-direction: row;
     align-items: center;
     gap: 1rem;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.05);
     padding: 1rem;
     border-radius: 10px;
     border: 1px solid var(--panel-border);
@@ -418,7 +461,7 @@ table#portfolio-table td {
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.15);
     transition: .4s;
     border-radius: 34px;
 }
@@ -553,7 +596,7 @@ input:checked+.slider:before {
 
 .markdown-body {
     line-height: 1.8;
-    color: #e2e8f0;
+    color: var(--text-primary);
 }
 
 .markdown-body p {
@@ -561,7 +604,7 @@ input:checked+.slider:before {
 }
 
 .markdown-body strong {
-    color: white;
+    color: var(--text-primary);
 }
 
 /* Pros/Cons */
@@ -655,7 +698,7 @@ th {
 }
 
 .rebalance-item {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.05);
     border: 1px solid var(--panel-border);
     padding: 1.25rem;
     border-radius: 10px;
@@ -666,7 +709,7 @@ th {
 
 .reb-action {
     font-weight: 600;
-    color: white;
+    color: var(--text-primary);
 }
 
 .reb-reason {
