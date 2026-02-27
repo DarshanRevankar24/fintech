@@ -4,6 +4,7 @@ Financial Explanation Assistant - FREE VERSION using Groq
 """
 
 from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
 from typing import List, Optional, Literal
@@ -14,6 +15,8 @@ import os
 import csv
 import io
 import json
+import pandas as pd
+import yfinance as yf
 
 # Load environment variables from .env file
 load_dotenv()  # Add this line
@@ -23,7 +26,7 @@ load_dotenv()  # Add this line
 # ============================================================================
 
 app = FastAPI(
-    title="Financial Explanation API (FREE - Groq)",
+    title="Financial Explanation API",
     description="AI-powered portfolio explainer using Groq (Fastest AI)",
     version="1.0.0"
 )
@@ -35,6 +38,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount the static frontend
+app.mount("/frontend", StaticFiles(directory="frontend", html=True), name="frontend")
 
 # Configure Groq (FREE!)
 # Get your free API key from: https://console.groq.com/keys
@@ -351,6 +357,24 @@ async def explain_portfolio(request: ExplanationRequest):
     try:
         print(f"[DEBUG] Received request with {len(request.portfolio)} holdings")
         
+        # Fetch real-time prices for holdings if missing
+        updated_holdings = []
+        for holding in request.portfolio:
+            if holding.current_price is None:
+                try:
+                    stock = yf.Ticker(holding.ticker)
+                    hist = stock.history(period="1d")
+                    if not hist.empty:
+                        holding.current_price = round(float(hist['Close'].iloc[-1]), 2)
+                    else:
+                        holding.current_price = holding.purchase_price
+                except Exception as e:
+                    print(f"[WARNING] Could not fetch price for {holding.ticker}: {e}")
+                    holding.current_price = holding.purchase_price
+            updated_holdings.append(holding)
+            
+        request.portfolio = updated_holdings
+        
         metrics = analyzer.calculate_portfolio_metrics(request.portfolio)
         print(f"[DEBUG] Metrics calculated")
         
@@ -395,33 +419,3 @@ async def explain_portfolio(request: ExplanationRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
 
-@app.post("/api/upload-csv")
-async def upload_portfolio_csv(file: UploadFile = File(...)):
-    """Upload portfolio CSV"""
-    
-    try:
-        content = await file.read()
-        csv_file = io.StringIO(content.decode('utf-8'))
-        reader = csv.DictReader(csv_file)
-        
-        holdings = []
-        for row in reader:
-            holding = PortfolioHolding(
-                ticker=row['ticker'],
-                shares=float(row['shares']),
-                purchase_price=float(row['purchase_price']),
-                purchase_date=row['purchase_date'],
-                current_price=float(row.get('current_price', row['purchase_price']))
-            )
-            holdings.append(holding)
-        
-        return {
-            "status": "success",
-            "holdings_count": len(holdings),
-            "holdings": [h.dict() for h in holdings]
-        }
-    
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"CSV parsing error: {str(e)}")
-
-# Run: uvicorn main:app --reload
