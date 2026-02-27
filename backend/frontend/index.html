@@ -22,10 +22,50 @@
         <div class="orb orb-3"></div>
     </div>
 
-    <div class="container">
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="auth-modal glass-panel">
+        <h2 class="gradient-text" id="auth-title">Log In to AI Portfolio</h2>
+        <p id="auth-subtitle">Analyze, save, and manage your investments.</p>
+
+        <form id="auth-form">
+            <div class="form-group" id="name-group" style="display: none;">
+                <label>Full Name</label>
+                <input type="text" id="auth-fullname" class="table-input" placeholder="e.g. Satoshi Nakamoto">
+            </div>
+            <div class="form-group" id="email-group" style="display: none;">
+                <label>Email Address</label>
+                <input type="email" id="auth-email" class="table-input" placeholder="satoshi@bitcoin.org">
+            </div>
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="auth-username" class="table-input" required placeholder="Choose a username">
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="auth-password" class="table-input" required placeholder="••••••••">
+            </div>
+
+            <button type="submit" class="btn btn-action" id="auth-submit-btn">Log In</button>
+        </form>
+
+        <p class="auth-switch">
+            <span id="auth-switch-text">Don't have an account?</span>
+            <a href="#" id="auth-switch-link">Register here</a>
+        </p>
+    </div>
+
+    <!-- Main App Container (Hidden until logged in) -->
+    <div class="container hidden" id="app-container">
         <header>
-            <h1 class="gradient-text"><i class="fa-solid fa-chart-line"></i> AI Portfolio Analyzer</h1>
-            <p>Enter your portfolio details to get a real-time, AI-driven financial explanation.</p>
+            <div class="header-top" style="display: flex; justify-content: space-between; align-items: center;">
+                <h1 class="gradient-text"><i class="fa-solid fa-chart-line"></i> AI Portfolio Analyzer</h1>
+                <div class="user-badge" style="display: flex; gap: 1rem; align-items: center;">
+                    <span id="welcome-name" style="font-weight: 600;"></span>
+                    <button id="logout-btn" class="btn btn-outline btn-sm"><i
+                            class="fa-solid fa-arrow-right-from-bracket"></i> Logout</button>
+                </div>
+            </div>
+            <p>Enter your portfolio details to get a real-time, personalized financial explanation.</p>
         </header>
 
         <!-- Upload Section -->

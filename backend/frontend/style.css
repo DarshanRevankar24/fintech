@@ -183,6 +183,66 @@ header p {
     background: rgba(255, 255, 255, 0.05);
 }
 
+/* Auth Modal */
+.auth-modal {
+    max-width: 450px;
+    margin: 5rem auto;
+    text-align: center;
+}
+
+#auth-title {
+    margin-bottom: 0.5rem;
+}
+
+#auth-subtitle {
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.form-group input {
+    width: 100%;
+    padding: 1rem;
+    border-radius: 10px;
+    font-size: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+}
+
+.auth-switch {
+    margin-top: 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+}
+
+.auth-switch a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.3s;
+}
+
+.auth-switch a:hover {
+    color: var(--secondary);
+}
+
+.btn-sm {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+    border-radius: 8px;
+}
+
 /* Upload Area */
 .upload-area {
     border: 2px dashed var(--primary);

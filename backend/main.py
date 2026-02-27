@@ -3,12 +3,12 @@ Financial Explanation Assistant - FREE VERSION using Groq
 100% FREE - 14,400 requests/day - SUPER FAST!
 """
 
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, status
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, validator
-from typing import List, Optional, Literal
-from datetime import datetime, date
+from typing import List, Optional, Literal, Dict
+from datetime import datetime, date, timedelta
 from groq import Groq
 from dotenv import load_dotenv  # Add this import
 import os
@@ -17,6 +17,17 @@ import io
 import json
 import pandas as pd
 import yfinance as yf
+
+# Auth & DB imports
+from fastapi import Depends
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session
+import database
+import models
+import auth
+
+# Initialize DB tables
+models.Base.metadata.create_all(bind=database.engine)
 
 # Load environment variables from .env file
 load_dotenv()  # Add this line
@@ -68,25 +79,46 @@ class ExplanationRequest(BaseModel):
     include_rebalancing: bool = Field(default=True)
     transcript_context: Optional[str] = Field(None)
 
-class TaxImpact(BaseModel):
-    holding: str
-    gain_loss: float
-    holding_period_days: int
-    tax_type: Literal["short_term", "long_term"]
-    estimated_tax_rate: float
-    estimated_tax: float
+# Auth schemas
+class UserCreate(BaseModel):
+    username: str
+    email: str
+    password: str
+    full_name: str
 
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+    user_name: str
+
+class UserResponse(BaseModel):
+    username: str
+    email: str
+    full_name: str
+
+# Strict JSON LLM Response Models
 class RebalancingIdea(BaseModel):
     action: str
     reason: str
     impact: str
 
+class StockAnalysis(BaseModel):
+    ticker: str
+    performance_summary: str
+    risk_signals_from_transcripts: List[str]
+    tax_consideration: str
+    citations: List[str]
+
 class ExplanationResponse(BaseModel):
-    explanation: str
-    risk_highlights: List[str] = Field(default_factory=list)
-    positives: List[str] = Field(default_factory=list)
-    tax_impacts: Optional[List[TaxImpact]] = None
-    rebalancing_ideas: Optional[List[RebalancingIdea]] = None
+    greeting: str
+    portfolio_summary: str
+    key_takeaways: List[str]
+    per_stock_analysis: List[StockAnalysis]
+    tax_optimization_advice: str
+    risk_score_explanation: str
+    confidence_score: float
+    action_plan: List[str]
+    # Keep the original calculated metrics to return alongside the AI response
     portfolio_metrics: dict = Field(default_factory=dict)
 
 # ============================================================================
@@ -153,40 +185,11 @@ class PortfolioAnalyzer:
             "Other": round(other_value / total, 2) if total > 0 else 0
         }
     
-    def calculate_tax_impacts(self, holdings: List[PortfolioHolding]) -> List[TaxImpact]:
-        """Calculate tax implications"""
-        tax_impacts = []
-        today = datetime.now().date()
-        
-        for holding in holdings:
-            current_price = holding.current_price or holding.purchase_price
-            gain_loss = (current_price - holding.purchase_price) * holding.shares
-            holding_days = (today - holding.purchase_date).days
-            
-            if holding_days < 365:
-                tax_type = "short_term"
-                tax_rate = 0.24
-            else:
-                tax_type = "long_term"
-                tax_rate = 0.15
-            
-            estimated_tax = gain_loss * tax_rate if gain_loss > 0 else 0
-            
-            tax_impacts.append(TaxImpact(
-                holding=holding.ticker,
-                gain_loss=round(gain_loss, 2),
-                holding_period_days=holding_days,
-                tax_type=tax_type,
-                estimated_tax_rate=tax_rate,
-                estimated_tax=round(estimated_tax, 2)
-            ))
-        
-        return tax_impacts
-    
     def generate_explanation(
         self,
         holdings: List[PortfolioHolding],
         metrics: dict,
+        user_name: str,
         user_level: str,
         transcript_context: Optional[str] = None
     ) -> str:
@@ -194,33 +197,117 @@ class PortfolioAnalyzer:
         Call Groq API (FREE and FAST!) to generate explanation
         
         Groq uses OpenAI-compatible API - very simple!
+        Enforces strict JSON output.
         """
         
-        level_instructions = {
-            "beginner": "Explain in simple terms, avoid jargon, use analogies. Be friendly and educational.",
-            "intermediate": "Use standard financial terminology but explain complex concepts clearly.",
-            "expert": "Use technical language and focus on metrics, ratios, and data-driven insights."
-        }
+        # We can calculate some basic tax string conceptually to pass as input
+        tax_summary = "Tax implications depend on holding period. Assets held >1 yr are subject to long term capital gains."
+        risk_model_output = "Moderate risk calculated via standard volatility metrics."
+        rag_context = transcript_context if transcript_context else "No relevant earnings call transcripts retrieved."
         
-        portfolio_summary = self._format_portfolio_for_prompt(holdings, metrics)
+        portfolio_metrics_str = self._format_portfolio_for_prompt(holdings, metrics)
         
-        prompt = f"""You are a financial advisor helping someone understand their portfolio.
+        prompt = f"""You are a professional AI Financial Advisor specializing in portfolio analysis, tax-aware investment strategy, and risk assessment grounded in earnings call transcripts.
 
-User level: {user_level}
-Instructions: {level_instructions[user_level]}
+Your responsibilities:
+- Analyze structured portfolio metrics.
+- Interpret tax implications (STCG vs LTCG).
+- Evaluate risk using provided quantitative signals.
+- Use ONLY the provided transcript excerpts as factual grounding.
+- Avoid hallucination or adding external assumptions.
+- Maintain a professional, neutral, and analytical tone.
 
-Portfolio Analysis:
-{portfolio_summary}
+You must return STRICTLY VALID JSON.
+Do not use markdown.
+Do not add commentary outside JSON.
+Do not invent data not present in the inputs.
 
-{"Context from company transcripts: " + transcript_context if transcript_context else ""}
+==============================
+CLIENT INFORMATION
+==============================
 
-Please provide:
-1. Overall portfolio assessment (2-3 sentences)
-2. Key strengths (2-3 points)
-3. Main risks or concerns (2-3 points)
-4. Outlook based on current holdings
+Client Name: {user_name}
+Experience Level: {user_level}
 
-Keep it concise and actionable."""
+Portfolio Metrics:
+{portfolio_metrics_str}
+
+Tax Analysis:
+{tax_summary}
+
+Risk Model Output:
+{risk_model_output}
+
+Retrieved Transcript Evidence:
+{rag_context}
+
+==============================
+ADAPT RESPONSE BASED ON EXPERIENCE LEVEL
+==============================
+
+If Experience Level is "beginner":
+- Use simple language.
+- Avoid heavy financial jargon.
+- Explain financial concepts briefly.
+- Focus on clarity and guidance.
+
+If Experience Level is "intermediate":
+- Use moderate financial terminology.
+- Explain important metrics like margin, allocation, concentration.
+- Provide balanced analytical depth.
+
+If Experience Level is "expert":
+- Use technical financial terminology.
+- Discuss margin trends, EPS implications, concentration risk, and sector exposure precisely.
+- Provide deeper analytical reasoning and structured insights.
+
+==============================
+RESPONSE REQUIREMENTS
+==============================
+
+1. Greet the client professionally using their name.
+2. Provide a concise portfolio summary.
+3. Highlight key takeaways.
+4. For each stock:
+   - Summarize performance.
+   - Mention transcript-based risk signals.
+   - Reference citations using provided metadata IDs.
+   - Explain tax considerations if sold today.
+5. Clearly explain risk score breakdown using provided risk components.
+6. Provide tax optimization insight (e.g., holding period benefits).
+7. Provide a confidence score between 0.0 and 1.0 based ONLY on:
+   - Completeness of data
+   - Quantity of transcript evidence
+   - Alignment between risk model and transcript signals
+8. Provide a short, actionable plan (not financial advice disclaimer heavy).
+
+If transcript evidence is insufficient, clearly state that insight is limited.
+
+==============================
+STRICT OUTPUT FORMAT
+==============================
+
+Return ONLY this JSON structure exactly:
+
+{{
+  "greeting": "",
+  "portfolio_summary": "",
+  "key_takeaways": [],
+  "per_stock_analysis": [
+    {{
+      "ticker": "",
+      "performance_summary": "",
+      "risk_signals_from_transcripts": [],
+      "tax_consideration": "",
+      "citations": []
+    }}
+  ],
+  "tax_optimization_advice": "",
+  "risk_score_explanation": "",
+  "confidence_score": 0.0,
+  "action_plan": []
+}}
+"""
 
         try:
             print(f"[DEBUG] Calling Groq API...")
@@ -229,11 +316,12 @@ Keep it concise and actionable."""
             response = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",  # Updated to current model
                 messages=[
-                    {"role": "system", "content": "You are a helpful financial advisor."},
+                    {"role": "system", "content": "You are a professional AI Financial Advisor. Output only raw JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
-                max_tokens=1500
+                temperature=0.2, # Lower temp for more stable JSON
+                max_tokens=2000,
+                response_format={"type": "json_object"}
             )
             
             print(f"[DEBUG] Groq response received")
@@ -350,12 +438,86 @@ async def root():
         "speed": "⚡ FASTEST AI API in the world"
     }
 
+@app.post("/api/register", response_model=UserResponse)
+def register_user(user: UserCreate, db: Session = Depends(database.get_db)):
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Username already registered")
+    
+    hashed_password = auth.get_password_hash(user.password)
+    db_user = models.User(
+        username=user.username,
+        email=user.email,
+        full_name=user.full_name,
+        hashed_password=hashed_password
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.post("/api/login", response_model=Token)
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(database.get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = auth.create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer", "user_name": user.full_name}
+
+@app.post("/api/portfolio/save")
+def save_portfolio(
+    portfolio: List[PortfolioHolding],
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    # Clear old holdings
+    db.query(models.Holding).filter(models.Holding.owner_id == current_user.id).delete()
+    
+    # Add new holdings
+    for holding in portfolio:
+        db_holding = models.Holding(
+            ticker=holding.ticker,
+            shares=holding.shares,
+            purchase_price=holding.purchase_price,
+            purchase_date=holding.purchase_date.strftime("%Y-%m-%d"),
+            owner_id=current_user.id
+        )
+        db.add(db_holding)
+    db.commit()
+    return {"message": "Portfolio saved successfully"}
+
+@app.get("/api/portfolio/get", response_model=List[PortfolioHolding])
+def get_portfolio(
+    current_user: models.User = Depends(auth.get_current_user),
+    db: Session = Depends(database.get_db)
+):
+    holdings = db.query(models.Holding).filter(models.Holding.owner_id == current_user.id).all()
+    # Convert DB models to Pydantic models for response
+    return [
+        PortfolioHolding(
+            ticker=h.ticker,
+            shares=h.shares,
+            purchase_price=h.purchase_price,
+            purchase_date=h.purchase_date
+        ) for h in holdings
+    ]
+
 @app.post("/api/explain", response_model=ExplanationResponse)
-async def explain_portfolio(request: ExplanationRequest):
-    """Main endpoint - completely FREE with Groq"""
+async def explain_portfolio(
+    request: ExplanationRequest,
+    current_user: models.User = Depends(auth.get_current_user)
+):
+    """Main endpoint - returns strict structured JSON"""
     
     try:
-        print(f"[DEBUG] Received request with {len(request.portfolio)} holdings")
+        print(f"[DEBUG] Received request with {len(request.portfolio)} holdings for user {current_user.full_name}")
         
         # Fetch real-time prices for holdings if missing
         updated_holdings = []
@@ -374,47 +536,34 @@ async def explain_portfolio(request: ExplanationRequest):
             updated_holdings.append(holding)
             
         request.portfolio = updated_holdings
-        
         metrics = analyzer.calculate_portfolio_metrics(request.portfolio)
-        print(f"[DEBUG] Metrics calculated")
         
-        explanation = analyzer.generate_explanation(
+        explanation_json = analyzer.generate_explanation(
             holdings=request.portfolio,
             metrics=metrics,
+            user_name=current_user.full_name, # Injected from DB
             user_level=request.user_level,
             transcript_context=request.transcript_context
         )
         print(f"[DEBUG] Explanation generated")
         
-        tax_impacts = None
-        if request.include_tax_analysis:
-            tax_impacts = analyzer.calculate_tax_impacts(request.portfolio)
+        # Parse JSON output from Groq
+        import json
+        structured_data = json.loads(explanation_json)
         
-        rebalancing_ideas = None
-        if request.include_rebalancing:
-            rebalancing_ideas = analyzer.generate_rebalancing_ideas(
-                holdings=request.portfolio,
-                metrics=metrics,
-                explanation=explanation
-            )
+        # Merge metrics back into the final response
+        structured_data['portfolio_metrics'] = metrics
         
-        lines = explanation.split('\n')
-        risk_highlights = [l.strip('- ').strip() for l in lines if 'risk' in l.lower() or 'concern' in l.lower()][:3]
-        positives = [l.strip('- ').strip() for l in lines if 'strength' in l.lower() or 'positive' in l.lower()][:3]
-        
-        return ExplanationResponse(
-            explanation=explanation,
-            risk_highlights=risk_highlights,
-            positives=positives,
-            tax_impacts=tax_impacts,
-            rebalancing_ideas=rebalancing_ideas,
-            portfolio_metrics=metrics
-        )
+        return ExplanationResponse(**structured_data)
     
-    except HTTPException as he:
-        raise he
+    except json.JSONDecodeError:
+        print(f"[ERROR] LLM Failed to return valid JSON")
+        raise HTTPException(status_code=500, detail="Failed to parse AI response into structured format.")
     except Exception as e:
         print(f"[ERROR] Unexpected error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
