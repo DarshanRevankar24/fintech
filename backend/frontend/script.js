@@ -299,25 +299,40 @@ const editProfileGrid = document.getElementById('edit-profile-grid');
 
 // Clone the registration fields into the modal safely
 function openEditProfileModal() {
-    if (editProfileGrid.innerHTML.trim() === "") {
-        const templateHTML = document.getElementById('register-profile-section').querySelector('.settings-grid').innerHTML;
-        // Replace 'profile-' with 'edit-profile-' to avoid duplicate DOM IDs
-        editProfileGrid.innerHTML = templateHTML.replaceAll('id="profile-', 'id="edit-profile-');
-    }
+    try {
 
-    // Pre-fill fields
-    if (userProfileBackup) {
-        if (userProfileBackup.age) document.getElementById('edit-profile-age').value = userProfileBackup.age;
-        if (userProfileBackup.profession) document.getElementById('edit-profile-profession').value = userProfileBackup.profession;
-        if (userProfileBackup.annual_income) document.getElementById('edit-profile-income').value = userProfileBackup.annual_income;
-        if (userProfileBackup.investment_experience) document.getElementById('edit-profile-experience').value = userProfileBackup.investment_experience;
-        if (userProfileBackup.risk_appetite) document.getElementById('edit-profile-risk').value = userProfileBackup.risk_appetite;
-        if (userProfileBackup.investment_horizon) document.getElementById('edit-profile-horizon').value = userProfileBackup.investment_horizon;
-        if (userProfileBackup.dependents) document.getElementById('edit-profile-dependents').value = userProfileBackup.dependents;
-        if (userProfileBackup.primary_goal) document.getElementById('edit-profile-goal').value = userProfileBackup.primary_goal;
-    }
+        // Pre-fill fields safely
+        if (userProfileBackup) {
+            const selAge = document.getElementById('edit-profile-age');
+            if (selAge && userProfileBackup.age) selAge.value = userProfileBackup.age;
 
-    editProfileModal.style.display = 'block';
+            const selProf = document.getElementById('edit-profile-profession');
+            if (selProf && userProfileBackup.profession) selProf.value = userProfileBackup.profession;
+
+            const selInc = document.getElementById('edit-profile-income');
+            if (selInc && userProfileBackup.annual_income) selInc.value = userProfileBackup.annual_income;
+
+            const selExp = document.getElementById('edit-profile-experience');
+            if (selExp && userProfileBackup.investment_experience) selExp.value = userProfileBackup.investment_experience;
+
+            const selRisk = document.getElementById('edit-profile-risk');
+            if (selRisk && userProfileBackup.risk_appetite) selRisk.value = userProfileBackup.risk_appetite;
+
+            const selHor = document.getElementById('edit-profile-horizon');
+            if (selHor && userProfileBackup.investment_horizon) selHor.value = userProfileBackup.investment_horizon;
+
+            const selDep = document.getElementById('edit-profile-dependents');
+            if (selDep && userProfileBackup.dependents) selDep.value = userProfileBackup.dependents;
+
+            const selGoal = document.getElementById('edit-profile-goal');
+            if (selGoal && userProfileBackup.primary_goal) selGoal.value = userProfileBackup.primary_goal;
+        }
+
+        editProfileModal.style.display = 'block';
+    } catch (err) {
+        console.error("Error opening profile modal: ", err);
+        alert("There was an issue opening the edit modal. Please reload.");
+    }
 }
 
 editProfileBtn.addEventListener('click', openEditProfileModal);
@@ -327,9 +342,10 @@ closeEditProfileBtn.addEventListener('click', () => {
 });
 
 saveEditProfileBtn.addEventListener('click', async () => {
-    const newProfile = gatherProfileData('edit-profile');
-    saveEditProfileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
     try {
+        const newProfile = gatherProfileData('edit-profile');
+        saveEditProfileBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
         const res = await fetch('/api/profile', {
             method: 'POST',
             headers: {
@@ -338,6 +354,7 @@ saveEditProfileBtn.addEventListener('click', async () => {
             },
             body: JSON.stringify(newProfile)
         });
+
         if (res.ok) {
             userProfileBackup = await res.json();
             editProfileModal.style.display = 'none';
@@ -349,11 +366,12 @@ saveEditProfileBtn.addEventListener('click', async () => {
                 }
             }
         } else {
-            alert("Failed to save profile.");
+            console.error(await res.text());
+            alert("Failed to save profile. See console.");
         }
     } catch (e) {
-        console.error(e);
-        alert("Network error saving profile.");
+        console.error("Save profile error:", e);
+        alert("Error saving profile! " + e.message);
     } finally {
         saveEditProfileBtn.innerHTML = 'Save &amp; Re-preview';
     }

@@ -361,9 +361,80 @@
                 style="background: transparent; border: none; color: var(--text-primary); font-size: 1.2rem; cursor: pointer;"><i
                     class="fa-solid fa-xmark"></i></button>
         </div>
-        <div id="edit-profile-grid" class="settings-grid"
-            style="grid-template-columns: 1fr 1fr; margin-bottom: 1.5rem;">
-            <!-- Fields dynamically cloned here -->
+        <div class="settings-grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 1.5rem;">
+            <div class="setting-item">
+                <label>Age</label>
+                <input type="number" id="edit-profile-age" class="table-input" placeholder="e.g. 35" min="18">
+            </div>
+            <div class="setting-item">
+                <label>Profession</label>
+                <select id="edit-profile-profession" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="Salaried">Salaried</option>
+                    <option value="Business Owner">Business Owner</option>
+                    <option value="Freelancer">Freelancer</option>
+                    <option value="Student">Student</option>
+                    <option value="Retired">Retired</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Annual Income</label>
+                <select id="edit-profile-income" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="<5L">&lt;5L</option>
+                    <option value="5-10L" selected>5–10L</option>
+                    <option value="10-20L">10–20L</option>
+                    <option value="20L+">20L+</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Investment Experience</label>
+                <select id="edit-profile-experience" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="Beginner">Beginner</option>
+                    <option value="Intermediate">Intermediate</option>
+                    <option value="Advanced">Advanced</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Risk Appetite</label>
+                <select id="edit-profile-risk" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="Low">Low</option>
+                    <option value="Moderate" selected>Moderate</option>
+                    <option value="High">High</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Investment Horizon</label>
+                <select id="edit-profile-horizon" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="Short <3 yrs">Short &lt;3 yrs</option>
+                    <option value="Medium 3-7 yrs" selected>Medium 3–7 yrs</option>
+                    <option value="Long >7 yrs">Long &gt;7 yrs</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Dependents</label>
+                <select id="edit-profile-dependents" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="0">0</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3+">3+</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label>Primary Goal</label>
+                <select id="edit-profile-goal" class="table-input"
+                    style="width: 100%; border-radius: 6px; padding: 0.5rem; background: rgba(0,0,0,0.05); border: 1px solid var(--panel-border); color: var(--text-primary);">
+                    <option value="Wealth Growth">Wealth Growth</option>
+                    <option value="Retirement">Retirement</option>
+                    <option value="Passive Income">Passive Income</option>
+                    <option value="Capital Protection">Capital Protection</option>
+                </select>
+            </div>
         </div>
         <button id="save-edit-profile-btn" class="btn btn-action" style="margin-top: 0;">Save &amp; Re-preview</button>
     </div>
@@ -394,7 +465,7 @@
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="script.js?v=3"></script>
 </body>
 
 </html>
